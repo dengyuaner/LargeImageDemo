@@ -45,21 +45,19 @@ public class LargeImageView extends View implements GestureDetector.OnGestureLis
     private BitmapFactory.Options options;
 
     public LargeImageView(Context context) {
-        super(context);
-        init(context, null);
+        this(context, null);
     }
 
     public LargeImageView(Context context, @Nullable AttributeSet attrs) {
-        super(context, attrs);
-        init(context, attrs);
+        this(context, attrs, 0);
     }
 
     public LargeImageView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        init(context, attrs);
+        init(context);
     }
 
-    private void init(Context context, AttributeSet attrs) {
+    private void init(Context context) {
         options = new BitmapFactory.Options();
         options.inPreferredConfig = Bitmap.Config.RGB_565;
 
@@ -75,14 +73,24 @@ public class LargeImageView extends View implements GestureDetector.OnGestureLis
         try {
             is = context.getResources().getAssets().open("timg.jpg");
             //初始化BitmapRegionDecode，并用它来显示图片
+            //如果在decodeStream之前使用is，会导致出错
+            // 此时流的起始位置已经被移动过了，需要调用is.reset()来重置，然后再decodeStream(imgInputStream, null, options)
             mDecoder = BitmapRegionDecoder
                     .newInstance(is, false);
+
             BitmapFactory.Options tmpOptions = new BitmapFactory.Options();
             // Grab the bounds for the scene dimensions
             tmpOptions.inJustDecodeBounds = true;
+
+            is.reset();
+
             BitmapFactory.decodeStream(is, null, tmpOptions);
             mImageWidth = tmpOptions.outWidth;
             mImageHeight = tmpOptions.outHeight;
+
+            Log.e(TAG, "width:" + mImageWidth + ",height:" + mImageHeight);
+
+
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
@@ -136,6 +144,9 @@ public class LargeImageView extends View implements GestureDetector.OnGestureLis
      * @param y
      */
     private void move(int x, int y) {
+
+        boolean isInvalidate = false;
+
         int deltaX = x - mLastX;
         int deltaY = y - mLastY;
         Log.d(TAG, "move, deltaX:" + deltaX + " deltaY:" + deltaY);
@@ -154,8 +165,8 @@ public class LargeImageView extends View implements GestureDetector.OnGestureLis
                 mRect.left = 0;
                 mRect.right = getWidth();
             }
+            isInvalidate = true;
 
-            invalidate();
         }
         //如果图片高度大于屏幕高度
         if (mImageHeight > getHeight()) {
@@ -171,9 +182,13 @@ public class LargeImageView extends View implements GestureDetector.OnGestureLis
                 mRect.top = 0;
                 mRect.bottom = getHeight();
             }
-            invalidate();
+            isInvalidate = true;
+
         }
 
+        if (isInvalidate) {
+            invalidate();
+        }
 
         mLastX = x;
         mLastY = y;
